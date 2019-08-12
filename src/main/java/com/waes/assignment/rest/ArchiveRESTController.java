@@ -1,129 +1,129 @@
-package com.waes.assignment.service;
+package com.waes.assignment.rest;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Arrays;
+import java.util.Objects;
 
-import javax.servlet.http.HttpServletRequest;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.tomcat.util.codec.binary.Base64;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
+import com.waes.assignment.data.ArchiveVO;
 import com.waes.assignment.data.ComparisonResultVO;
+import com.waes.assignment.data.ServiceErrorVO;
 import com.waes.assignment.entity.Archive;
 import com.waes.assignment.enumarator.SideEnum;
 import com.waes.assignment.enumarator.StatusEnum;
-import com.waes.assignment.repository.ArchiveRepository;
+import com.waes.assignment.service.ArchiveService;
+
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
 
 /**
+ * Class responsible for providing  file storage and comparison services 
  * 
- * @author igor.furtado  
+ * @author igor.furtado
  *
  */
-@Service
-public class ArchiveService {
+@RestController
+@RequestMapping("/v1/diff")
+public class ArchiveRESTController {
 	
 	@Autowired
-	ArchiveRepository repository;
-	
-	@Autowired
-	private HttpServletRequest request;
-	
-	Logger logger = LoggerFactory.getLogger(FileUtil.class);
+	ArchiveService archiveService;
 	
 	/**
-	 * Will save the file in the Filesystem and in the Database.
+	 * Service responsible for comparison of both file sent previously.
 	 * 
+	 * Return 200 if the comparison was made successfully or 404 if some file was not found to be compared.
 	 * 
-	 * @param id Number of the file
-	 * @param base64 File in base64 encoeded
-	 * @param side Side of the file
-	 * @return saved Archive with all File Informations
+	 * @param ID - Identificator of both files already sent.
+	 * @return Json with result message
 	 */
-	public Archive saveFile(Integer id, String base64, SideEnum side) {
-		try {
-			String realPath = request.getServletContext().getRealPath("/");
-			String filename = realPath + FileUtil.BASE_PATH_IMAGES + File.separator + side + File.separator + id;
-			FileUtil.saveBase64ToFileSystem(filename, base64);
-			Archive archive = new Archive(id, filename, side);
-			return this.repository.save(archive);
-		} catch (IOException e) {
-			logger.trace(">> Error ArchiveService saveBase64ToFileSystem <<" + e.getLocalizedMessage());
-			return null;
-		} catch(Exception e) {
-			logger.trace(">> Error ArchiveService saveFileToDatabase <<" + e.getLocalizedMessage());
-			return null;
+	@ApiOperation( value = "Compare two files sizes and offset", response = ComparisonResultVO.class, 
+			notes = "Returns the result of comparing the two previously submitted files" )
+	@ApiResponses( value = {@ApiResponse(code = 200, message = "Files compared with success."), 
+			@ApiResponse(code = 404, message = "Files to compare was not found.")})
+	@RequestMapping(value = "/{ID}")
+	public ResponseEntity<ComparisonResultVO> checkDifference(@PathVariable final Integer ID) {
+		ComparisonResultVO comparisonResult = this.archiveService.compareFiles(ID);
+		if(StatusEnum.SUCCESS.equals(comparisonResult.getStatus())){
+			return ResponseEntity.ok(comparisonResult);
 		}
-	
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(comparisonResult);
 	}
-
-	/**
-	 * Method will comapre two diferent files with the same ID and will return if the size are equals or not.
-	 * If the size are equals will return Position where the files start to be diffed and the length of the file.
-	 * If the size are not equals will return that the size are different.
-	 * If one of the files are not found will return fail status with messsage.
+	
+	/** 
 	 * 
-	 * @param id
-	 * @param realPath
-	 * @return ComparisonResultVO
+	 * Service responsible for saving a file to the local file server for future comparison.
+	 * The file will be save as Left side of comparison.
+	 * 
+	 * @param ID - Number that identify the file to be compared
+	 * @param archiveVO Base64 of the file
+	 * @return
 	 */
-	public ComparisonResultVO compareFiles(Integer id) {
-		Archive leftArchive = this.findFileByFileNumberAndSide(id, SideEnum.LEFT);
-		Archive rightArchive = this.findFileByFileNumberAndSide(id, SideEnum.RIGHT);
+	@ApiOperation( value = "Save the base64 into FileSystem to be used for comparison later")
+	@ApiResponses( value = {@ApiResponse(code = 201, message = "File Save with Success."),
+			@ApiResponse(code = 400, message = "Base64 not valid."),
+			@ApiResponse(code = 403, message = "The file already exists."),
+			@ApiResponse(code = 500, message = "File can`t be saved.")})
+	@PostMapping(value = "/{ID}/left")
+	public ResponseEntity<?> uploadLeft(@PathVariable Integer ID, @RequestBody final ArchiveVO archiveVO) {
+		return manageFileSave(ID, archiveVO, SideEnum.LEFT);
 		
-		File leftFile = FileUtil.recoveryFile(leftArchive.getPath());
-		File rightFile = FileUtil.recoveryFile(rightArchive.getPath());
-		
-		ComparisonResultVO comparisonResult = new ComparisonResultVO();
-
-		if(leftFile.exists() && rightFile.exists()) {
-			try {
-				byte[] leftBytes = Files.readAllBytes(leftFile.toPath());
-				byte[] rightBytes = Files.readAllBytes(rightFile.toPath());
-				if(Arrays.equals(leftBytes, rightBytes)) {
-					comparisonResult.setStatus(StatusEnum.SUCCESS);
-					comparisonResult.setMessage("The files are the same");
-					return comparisonResult;
-				}
-			
-			
-				Long leftSize = leftFile.length();
-				Long rightSize = rightFile.length();
-				comparisonResult.setStatus(StatusEnum.SUCCESS);
-				if(!leftSize.equals(rightSize)) {
-					comparisonResult.setMessage("The files are not the same size");
-				} else {
-					for(int pos = 0; pos < leftBytes.length; pos++ ) {
-						if(leftBytes[pos] != rightBytes[pos]) {
-							comparisonResult.setLenght(leftSize);
-							comparisonResult.setOffset(new Long(pos));
-							comparisonResult.setMessage("The files are differente from position " + pos);
-							return comparisonResult;
-						}
-					}
-				}
-			
-			} catch (IOException e) {
-				comparisonResult.setStatus(StatusEnum.FAIL);
-				comparisonResult.setMessage("Fail to load the files");
-				return comparisonResult;
+	}
+	 
+	/**
+	 * Service responsible for saving a file to the local file server for future comparison.
+	 * The file will be save as Right side of comparison.
+	 * 
+	 * @param ID - Number that identify the file to be compared
+	 * @param archive Base64 of the file
+	 * @return
+	 */
+	@ApiOperation( value = "Save the base64 into FileSystem to be used for comparison later")
+	@ApiResponses( value = {@ApiResponse(code = 200, message = "File Save with Success."),
+			@ApiResponse(code = 400, message = "Base64 not valid."),
+			@ApiResponse(code = 403, message = "The file already exists."),
+			@ApiResponse(code = 500, message = "File can`t be saved.")})
+	@PostMapping(value = "/{ID}/right")
+	public ResponseEntity<?> uploadRight(@PathVariable Integer ID, @RequestBody final ArchiveVO archiveVO) {
+		return manageFileSave(ID, archiveVO, SideEnum.RIGHT);
+	}
+	
+	/**
+	 * Manage the File save and the possible return for both services
+	 * 
+	 * @param ID Number that will be used to save the file
+	 * @param archiveVO Json with the base64 of the file
+	 * @param side Side where the file will be save
+	 * 
+	 * @return
+	 */
+	private ResponseEntity<?> manageFileSave(Integer ID, final ArchiveVO archiveVO, SideEnum side) {
+		//First will validate if the JSON is valid and if the Base64 is valid
+		if(Objects.nonNull(archiveVO) && Objects.nonNull(archiveVO.getBase64()) && 
+				!archiveVO.getBase64().isEmpty() && !Base64.isBase64(archiveVO.getBase64())) {
+			ServiceErrorVO error = new ServiceErrorVO("JSON format is not valid");
+			return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);	
+		}else {
+			//Check if there is some file already saved for the ID
+			Archive savedArchive = this.archiveService.findFileByFileNumberAndSide(ID, side);
+			if(Objects.nonNull(savedArchive)) {
+				ServiceErrorVO error = new ServiceErrorVO("Not allowed to update");
+				return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+			} else { 
+				//Will save the new file under the ID
+				Archive archive = this.archiveService.saveFile(ID, archiveVO.getBase64(), side);
+				return ResponseEntity.status(HttpStatus.CREATED).body(archive);	
 			}
 			
-		} else {
-			comparisonResult.setStatus(StatusEnum.FAIL);
-			comparisonResult.setMessage("There must have two Files to be compared");
 		}
-		return comparisonResult;
-		
 	}
-
-	public Archive findFileByFileNumberAndSide(Integer id, SideEnum side) {
-		return this.repository.findByFileNumberAndSide(id, side);
-	}
-
-
-	
+		 
 }
