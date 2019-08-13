@@ -1,4 +1,4 @@
-package com.waes.assignment.service;
+package com.waes.assignment.util;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,8 +11,6 @@ public class FileUtil {
 	
 	public static final String BASE_PATH_IMAGES = "images";
 	
-	
-
 	public static void saveBase64ToFileSystem(String filename, String base64) throws IOException{
 		byte[] decoded = Base64.decodeBase64(base64.getBytes());
 		try {
@@ -22,10 +20,4 @@ public class FileUtil {
 		}
 	}
 
-
-
-	public static File recoveryFile(String path) {
-		return new File(path);
-	}
-	
 }
