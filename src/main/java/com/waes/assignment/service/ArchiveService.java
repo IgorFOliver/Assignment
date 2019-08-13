@@ -17,6 +17,7 @@ import com.waes.assignment.entity.Archive;
 import com.waes.assignment.enumarator.SideEnum;
 import com.waes.assignment.enumarator.StatusEnum;
 import com.waes.assignment.repository.ArchiveRepository;
+import com.waes.assignment.util.FileUtil;
 
 /**
  * 
@@ -62,7 +63,7 @@ public class ArchiveService {
 
 	/**
 	 * Method will comapre two diferent files with the same ID and will return if the size are equals or not.
-	 * If the size are equals will return Position where the files start to be diffed and the length of the file.
+	 * If the size are equals and the files are different it will return Position where the files start to be diffed and the length of the file.
 	 * If the size are not equals will return that the size are different.
 	 * If one of the files are not found will return fail status with messsage.
 	 * 
@@ -74,8 +75,8 @@ public class ArchiveService {
 		Archive leftArchive = this.findFileByFileNumberAndSide(id, SideEnum.LEFT);
 		Archive rightArchive = this.findFileByFileNumberAndSide(id, SideEnum.RIGHT);
 		
-		File leftFile = FileUtil.recoveryFile(leftArchive.getPath());
-		File rightFile = FileUtil.recoveryFile(rightArchive.getPath());
+		File leftFile = new File(leftArchive.getPath());
+		File rightFile = new File(rightArchive.getPath());
 		
 		ComparisonResultVO comparisonResult = new ComparisonResultVO();
 
