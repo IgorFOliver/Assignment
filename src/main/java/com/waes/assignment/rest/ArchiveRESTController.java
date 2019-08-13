@@ -79,7 +79,7 @@ public class ArchiveRESTController {
 	}
 	 
 	/**
-	 * Service responsible for saving a file to the local file server for future comparison.
+	 * Service responsible for saving a new file to the local file server for future comparison.
 	 * The file will be save as Right side of comparison.
 	 * 
 	 * @param ID - Number that identify the file to be compared
@@ -97,7 +97,8 @@ public class ArchiveRESTController {
 	}
 	
 	/**
-	 * Manage the File save and the possible return for both services
+	 * Manage the File save and the return for both services
+	 * 
 	 * 
 	 * @param ID Number that will be used to save the file
 	 * @param archiveVO Json with the base64 of the file
@@ -107,15 +108,15 @@ public class ArchiveRESTController {
 	 */
 	private ResponseEntity<?> manageFileSave(Integer ID, final ArchiveVO archiveVO, SideEnum side) {
 		//First will validate if the JSON is valid and if the Base64 is valid
-		if(Objects.nonNull(archiveVO) && Objects.nonNull(archiveVO.getBase64()) && 
-				!archiveVO.getBase64().isEmpty() && !Base64.isBase64(archiveVO.getBase64())) {
+		if(Objects.isNull(archiveVO.getBase64()) || 
+				archiveVO.getBase64().isEmpty() || !Base64.isBase64(archiveVO.getBase64())) {
 			ServiceErrorVO error = new ServiceErrorVO("JSON format is not valid");
 			return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);	
 		}else {
 			//Check if there is some file already saved for the ID
 			Archive savedArchive = this.archiveService.findFileByFileNumberAndSide(ID, side);
 			if(Objects.nonNull(savedArchive)) {
-				ServiceErrorVO error = new ServiceErrorVO("Not allowed to update");
+				ServiceErrorVO error = new ServiceErrorVO("This service is not allowed to update the file");
 				return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
 			} else { 
 				//Will save the new file under the ID
