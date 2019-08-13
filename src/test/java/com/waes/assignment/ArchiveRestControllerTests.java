@@ -10,11 +10,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.io.IOException;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,6 +26,7 @@ import com.waes.assignment.data.ArchiveVO;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@TestMethodOrder(OrderAnnotation.class)
 public class ArchiveRestControllerTests {
 	
 	@Autowired
@@ -76,8 +79,7 @@ public class ArchiveRestControllerTests {
 	public void diffTest() throws Exception {
 		mvc.perform(get("/v1/diff/{ID}", 1))
          .andExpect(status().isOk())
-         .andExpect(content().contentType("application/json"));
-		
+         .andExpect(content().contentType("application/json;charset=UTF-8"));
 	}
 	
 	
